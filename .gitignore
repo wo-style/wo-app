@@ -12,9 +12,8 @@ dist
 dist-ssr
 *.local
 
-# Local iOS helper scripts
-pro-ios.command
-dev-ios.command
+# Local helper scripts
+*.command
 
 # Editor directories and files
 .vscode/*
