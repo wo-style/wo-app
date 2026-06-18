@@ -1,7 +1,98 @@
-# Tauri + Vanilla TS
+# を研究所
 
-This template should help get you started developing with Tauri in vanilla HTML, CSS and Typescript.
+「名詞 **を** 動詞」——日本語の助詞「を」でつながる組み合わせを、眺めて・作って・集めるアプリです。
+気に入った名詞や動詞をお気に入りに貯め、それらからランダムに「作文」を生成し、お気に入りの一文を「名文」として保存できます。
 
-## Recommended IDE Setup
+- **対応プラットフォーム**: iOS（iPhone 専用 / 縦画面固定）・Android・デスクトップ
+- **アプリ ID**: `style.wo.app`
+- **バージョン**: 0.1.0
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+---
+
+## 使い方
+
+画面下部のタブで 7 つのモードを切り替えます。各モードはページャー（◀ / ▶）で前後のページに移動できます。
+
+### 例文
+辞書から「名詞 を 動詞」の例文をランダムに表示します。
+- **名詞 / 動詞をタップ** → その語をお気に入りに登録／解除（登録中はハイライト表示）
+
+### 名詞 / 動詞
+お気に入り登録した名詞・動詞の一覧です。
+- **タップ** → 削除／復活をトグル（削除中は取り消し線）
+- **長押し** → その語と、もう一方のお気に入り全件を組み合わせて「作文」を生成し、作文モードへ移動
+
+### 作文
+お気に入りの名詞・動詞からランダムに「名詞 を 動詞」を生成します。
+- **名詞をタップ** → 名詞お気に入りから削除／復活（取り消し線）
+- **動詞をタップ** → 動詞お気に入りから削除／復活（取り消し線）
+- **「を」をタップ** → その一文を「名文」に保存／解除（一文全体をハイライト）
+
+### 検索
+キーワードで検索します。ラジオで対象を切り替え：
+- **例文** / **名詞** / **動詞**
+
+### 登録
+新しい語・文を手動で登録します。ラジオで種別を切り替え：
+- **名詞** / **動詞**（入力欄ひとつ）
+- **名文**（「名詞 を 動詞」の 2 欄）
+
+### 名文
+お気に入りに保存した「名詞 を 動詞」の一覧です。
+- **タップ** → 削除／復活をトグル（取り消し線）
+
+> ページ内の項目を消し切って存在しないページへ進んでも、自動的に最後の有効なページへ戻ります。
+
+---
+
+## データについて
+
+辞書データは SQLite データベースとして提供され、**初回起動時にサーバーからダウンロード**してアプリのデータ領域に保存します。以降はローカルの DB を参照し、お気に入り・名文もそこに保存されます（ネットワークは初回 DB 取得時に使用）。
+
+---
+
+## 技術スタック
+
+- **[Tauri 2](https://tauri.app/)**（Rust + システム WebView）
+- フロントエンド: Vanilla JS + [Vite](https://vitejs.dev/)（フレームワーク非依存）
+- バックエンド（`src-tauri`）: Rust
+  - `rusqlite`（bundled SQLite）でローカル DB を操作
+  - `reqwest`（rustls）で初回 DB ダウンロード
+- フォント: DotGothic16
+
+フロントとバックエンドのロジックは全プラットフォーム共通で、プラットフォーム固有のコード分岐はありません。
+
+---
+
+## 開発
+
+### 必要環境
+- Node.js / npm
+- Rust ツールチェーン（[Tauri の前提条件](https://tauri.app/start/prerequisites/)）
+- iOS ビルド: Xcode
+- Android ビルド: Android Studio（SDK / NDK / コマンドラインツール）と環境変数 `ANDROID_HOME` / `NDK_HOME` / `JAVA_HOME`、Rust の Android ターゲット
+
+### セットアップ
+```bash
+npm install
+```
+
+### 開発実行（ホットリロード）
+```bash
+npm run tauri dev              # デスクトップ
+npm run tauri ios dev          # iOS シミュレータ／実機
+npm run tauri android dev      # Android エミュレータ／実機
+```
+
+### ビルド
+```bash
+npm run tauri build            # デスクトップ
+npm run tauri ios build        # iOS
+npm run tauri android build    # Android（--apk / --aab）
+```
+
+### アプリアイコンの更新
+ルートの `app-icon.png`（1024×1024 推奨）から全プラットフォーム分を生成：
+```bash
+npm run tauri icon app-icon.png
+```
