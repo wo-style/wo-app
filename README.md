@@ -1,5 +1,6 @@
-# を研究所
+## を研究所
 
+<p align="center"><img src="images/example.png" width="25%" alt="例文"><img src="images/noun.png" width="25%" alt="名詞"><img src="images/verb.png" width="25%" alt="作文"><img src="images/generate.png" width="25%" alt="名文"></p>
 「名詞 **を** 動詞」——日本語の助詞「を」でつながる組み合わせを、眺めて・作って・集めるアプリです。
 気に入った名詞や動詞をお気に入りに貯め、それらからランダムに「作文」を生成し、お気に入りの一文を「名文」として保存できます。
 
