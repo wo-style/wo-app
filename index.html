@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ja">
+    <head>
+        <meta charset="UTF-8" />
+        <link rel="stylesheet" href="/src/styles.css" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no"
+        />
+        <title>を研究所</title>
+        <script type="module" src="/src/main.js" defer></script>
+    </head>
+
+    <body>
+        <main class="container">
+            <header class="app-header">
+                <h1>を研究所</h1>
+                <p id="status"></p>
+            </header>
+
+            <div class="views">
+                <section class="mode-panel" data-mode="examples">
+                    <ul id="examples"></ul>
+                </section>
+                <section class="mode-panel" data-mode="nouns">
+                    <ul id="nouns"></ul>
+                </section>
+                <section class="mode-panel" data-mode="verbs">
+                    <ul id="verbs"></ul>
+                </section>
+                <section class="mode-panel" data-mode="sentences">
+                    <ul id="sentences"></ul>
+                </section>
+                <section class="mode-panel" data-mode="generated">
+                    <ul id="generated"></ul>
+                </section>
+                <section class="mode-panel" data-mode="search">
+                    <form id="search-form" class="search-form">
+                        <div class="radio-group">
+                            <label><input type="radio" name="search-type" value="sentence_example" checked /> 例文</label>
+                            <label><input type="radio" name="search-type" value="noun" /> 名詞</label>
+                            <label><input type="radio" name="search-type" value="verb" /> 動詞</label>
+                        </div>
+                        <input type="text" id="search-text" class="input" placeholder="検索ワード" autocomplete="off" />
+                        <button type="submit" id="search-run" class="mode-button">検索する</button>
+                    </form>
+                    <ul id="search-results-words"></ul>
+                    <ul id="search-results-examples"></ul>
+                </section>
+                <section class="mode-panel" data-mode="register">
+                    <form id="register-form" class="register-form">
+                        <div class="radio-group">
+                            <label><input type="radio" name="register-type" value="noun" checked /> 名詞</label>
+                            <label><input type="radio" name="register-type" value="verb" /> 動詞</label>
+                            <label><input type="radio" name="register-type" value="sentence" /> 名文</label>
+                        </div>
+                        <div class="register-inputs">
+                            <input type="text" id="register-noun" class="input" placeholder="名詞" autocomplete="off" />
+                            <span id="register-wo">を</span>
+                            <input type="text" id="register-verb" class="input" placeholder="動詞" autocomplete="off" />
+                        </div>
+                        <button type="submit" class="mode-button">登録する</button>
+                    </form>
+                </section>
+            </div>
+
+            <nav id="modes">
+                <button type="button" class="mode-button" data-mode="examples">例文</button>
+                <button type="button" class="mode-button" data-mode="nouns">名詞</button>
+                <button type="button" class="mode-button" data-mode="verbs">動詞</button>
+                <button type="button" class="mode-button" data-mode="generated">作文</button>
+                <button type="button" class="mode-button" data-mode="search">検索</button>
+                <button type="button" class="mode-button" data-mode="register">登録</button>
+                <button type="button" class="mode-button" data-mode="sentences">名文</button>
+            </nav>
+        </main>
+    </body>
+</html>
