@@ -75,6 +75,8 @@ const createListView = (ul, shape, handlers) => {
             li._noun = n;
             li._verb = v;
             li._phrase = phrase;
+            n.dataset.role = "noun";
+            v.dataset.role = "verb";
             n.addEventListener("click", () => handlers.onNoun?.(view, idx));
             v.addEventListener("click", () => handlers.onVerb?.(view, idx));
             wo.addEventListener("click", () => handlers.onParticle?.(view, idx));
@@ -481,29 +483,32 @@ const setupRegister = () => {
     updateRegisterInputs(registerType());
 };
 
+const composeWithWord = async (kind, word) => {
+    if (!kind || !word) return;
+    const target = kind === "noun" ? "verb" : "noun";
+    const targetName = kind === "noun" ? "動詞" : "名詞";
+    try {
+        await generatedPager.load(
+            (p) => generateWithWordByFavorites(kind, target, word, listLimit(), p),
+            (items) => generatedView.render(items, listLimit()),
+        );
+        setMode("generated");
+        setStatus(`「${word}」と全ての${targetName}で作文しました`);
+    } catch (err) {
+        reportError(err);
+    }
+};
+
 const setupWordLongPress = (kind) => {
     const ul = document.getElementById(kind === "noun" ? "nouns" : "verbs");
     if (!ul) return;
-    const target = kind === "noun" ? "verb" : "noun";
-    const targetName = kind === "noun" ? "動詞" : "名詞";
-    onLongPress(
-        ul,
-        async (li) => {
-            const word = li.dataset.word;
-            if (!word) return;
-            try {
-                await generatedPager.load(
-                    (p) => generateWithWordByFavorites(kind, target, word, listLimit(), p),
-                    (items) => generatedView.render(items, listLimit()),
-                );
-                setMode("generated");
-                setStatus(`「${word}」と全ての${targetName}で作文しました`);
-            } catch (err) {
-                reportError(err);
-            }
-        },
-        { selector: ".word-item" },
-    );
+    onLongPress(ul, (li) => composeWithWord(kind, li.dataset.word), { selector: ".word-item" });
+};
+
+const setupGeneratedLongPress = () => {
+    const ul = document.getElementById("generated");
+    if (!ul) return;
+    onLongPress(ul, (el) => composeWithWord(el.dataset.role, el.textContent), { selector: ".word" });
 };
 
 window.addEventListener("DOMContentLoaded", async () => {
@@ -538,6 +543,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     setupRegister();
     setupWordLongPress("noun");
     setupWordLongPress("verb");
+    setupGeneratedLongPress();
 
     if (document.fonts?.ready) {
         try {
