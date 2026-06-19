@@ -3,7 +3,7 @@ use rusqlite::types::{Value, ValueRef};
 use rusqlite::{params_from_iter, Connection};
 use serde::Serialize;
 
-pub const CURRENT_DB_VERSION: i64 = 8;
+pub const CURRENT_DB_VERSION: i64 = 10;
 pub const DB_FILENAME: &str = "wo.db";
 pub const DB_URL: &str = "https://db.wo.style/wo.db";
 
