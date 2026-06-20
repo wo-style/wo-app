@@ -45,7 +45,7 @@
                             <label><input type="radio" name="search-type" value="noun" /> 名詞</label>
                             <label><input type="radio" name="search-type" value="verb" /> 動詞</label>
                         </div>
-                        <input type="text" id="search-text" class="input" placeholder="検索ワード" autocomplete="off" />
+                        <input type="text" id="search-text" class="input" placeholder="検索ワード" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" />
                         <button type="submit" id="search-run" class="mode-button">検索する</button>
                     </form>
                     <ul id="search-results-words"></ul>
@@ -59,9 +59,9 @@
                             <label><input type="radio" name="register-type" value="sentence" /> 名文</label>
                         </div>
                         <div class="register-inputs">
-                            <input type="text" id="register-noun" class="input" placeholder="名詞" autocomplete="off" />
+                            <input type="text" id="register-noun" class="input" placeholder="名詞" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" />
                             <span id="register-wo">を</span>
-                            <input type="text" id="register-verb" class="input" placeholder="動詞" autocomplete="off" />
+                            <input type="text" id="register-verb" class="input" placeholder="動詞" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" />
                         </div>
                         <button type="submit" class="mode-button">登録する</button>
                     </form>
