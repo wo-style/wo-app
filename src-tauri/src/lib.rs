@@ -170,6 +170,28 @@ fn delete_word(state: State<AppState>, kind: String, word: String) -> CmdResult<
 }
 
 #[tauri::command]
+fn get_examples_with_word(
+    state: State<AppState>,
+    kind: String,
+    word: String,
+    limit: i64,
+    page: i64,
+) -> CmdResult<db::Paged> {
+    with_conn(&state, |c| db::get_examples_with_word(c, &kind, &word, limit, page))
+}
+
+#[tauri::command]
+fn get_words_by_reading(
+    state: State<AppState>,
+    kind: String,
+    heads: Vec<String>,
+    limit: i64,
+    page: i64,
+) -> CmdResult<db::Paged> {
+    with_conn(&state, |c| db::get_words_by_reading(c, &kind, heads, limit, page))
+}
+
+#[tauri::command]
 fn generate_random_by_favorites(state: State<AppState>, limit: i64) -> CmdResult<db::ItemList> {
     with_conn(&state, |c| Ok(db::ItemList { items: db::generate_random_by_favorites(c, limit)? }))
 }
@@ -204,6 +226,8 @@ pub fn run() {
             delete_sentence,
             save_word,
             delete_word,
+            get_examples_with_word,
+            get_words_by_reading,
             generate_random_by_favorites,
             generate_with_word_by_favorites,
         ])

@@ -27,6 +27,12 @@ export const saveWord = (kind, word) => invoke("save_word", { kind, word });
 
 export const deleteWord = (kind, word) => invoke("delete_word", { kind, word });
 
+export const getExamplesWithWord = (kind, word, limit, page = 0) =>
+    invoke("get_examples_with_word", { kind, word, limit, page });
+
+export const getWordsByReading = (kind, heads, limit, page = 0) =>
+    invoke("get_words_by_reading", { kind, heads, limit, page });
+
 export const generateRandomByFavorites = (limit) =>
     invoke("generate_random_by_favorites", { limit });
 

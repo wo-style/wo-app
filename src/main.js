@@ -10,6 +10,8 @@ import {
     getSentenceFavorites,
     searchWords,
     searchSentences,
+    getExamplesWithWord,
+    getWordsByReading,
     generateRandomByFavorites,
     generateWithWordByFavorites,
 } from "./db.js";
@@ -24,7 +26,9 @@ let setMode = () => {};
 let lastSearchKind = "noun";
 
 let examplesView, nounsView, verbsView, sentencesView, generatedView, searchWordsView, searchExamplesView;
-let nounsPager, verbsPager, sentencesPager, generatedPager, searchPager;
+let nounsDictView, verbsDictView;
+let examplesPager, nounsPager, verbsPager, sentencesPager, generatedPager, searchPager;
+let nounsDictPager, verbsDictPager;
 let searchForm, searchResultsWords, searchResultsExamples, searchTextEl;
 let registerNoun, registerVerb, registerWo;
 
@@ -121,6 +125,7 @@ const createListView = (ul, shape, handlers) => {
             } else {
                 li._text.textContent = row[0];
                 li.dataset.word = row[0];
+                li._text.classList.toggle("saved", row[1] === "1");
             }
             li.classList.remove("deleted");
             li.style.display = "";
@@ -147,6 +152,12 @@ const createListView = (ul, shape, handlers) => {
     view.setWordDeleted = (i, which, flag) => {
         const span = which === "noun" ? lis[i]?._noun : lis[i]?._verb;
         span?.classList.toggle("deleted", flag);
+    };
+
+    view.setSavedRow = (i, flag) => {
+        if (lis[i]?._text) lis[i]._text.classList.toggle("saved", flag);
+        const item = view.items[i];
+        if (item) item[1] = flag ? "1" : "0";
     };
 
     view.setSentenceSaved = (i, flag) => {
@@ -334,6 +345,7 @@ const reloadExamples = async () => {
     try {
         const limit = listLimit();
         const { items } = await getSentenceExamples(limit);
+        examplesPager.hideFooter();
         examplesView.render(items, limit);
         setStatus("例文を取得しました");
     } catch (err) {
@@ -360,8 +372,14 @@ const setupModes = () => {
     const reloaders = {
         examples: reloadExamples,
         generated: regenerateFavorites,
-        nouns: () => nounsPager.reset(),
-        verbs: () => verbsPager.reset(),
+        nouns: () => {
+            showWordView("noun", "fav");
+            return nounsPager.reset();
+        },
+        verbs: () => {
+            showWordView("verb", "fav");
+            return verbsPager.reset();
+        },
         sentences: () => sentencesPager.reset(),
     };
 
@@ -434,8 +452,7 @@ const setupSearch = () => {
     });
 };
 
-const registerType = () =>
-    document.querySelector('input[name="register-type"]:checked')?.value ?? "noun";
+const registerType = () => document.querySelector('input[name="register-type"]:checked')?.value ?? "noun";
 
 const updateRegisterInputs = (type) => {
     registerNoun.style.display = type === "verb" ? "none" : "";
@@ -511,6 +528,157 @@ const setupGeneratedLongPress = () => {
     onLongPress(ul, (el) => composeWithWord(el.dataset.role, el.textContent), { selector: ".word" });
 };
 
+const showExamplesWithWord = async (kind, word) => {
+    if (!kind || !word) return;
+    try {
+        await examplesPager.load(
+            (p) => getExamplesWithWord(kind, word, listLimit(), p),
+            (items) => examplesView.render(items, listLimit()),
+        );
+        setStatus(`「${word}」を含む例文を表示しました`);
+    } catch (err) {
+        reportError(err);
+    }
+};
+
+const setupExamplesLongPress = () => {
+    const ul = document.getElementById("examples");
+    if (!ul) return;
+    onLongPress(ul, (el) => showExamplesWithWord(el.dataset.role, el.textContent), { selector: ".word" });
+};
+
+const KANA_ROWS = [
+    ["あ", "い", "う", "え", "お"],
+    ["か", "き", "く", "け", "こ"],
+    ["さ", "し", "す", "せ", "そ"],
+    ["た", "ち", "つ", "て", "と"],
+    ["な", "に", "ぬ", "ね", "の"],
+    ["は", "ひ", "ふ", "へ", "ほ"],
+    ["ま", "み", "む", "め", "も"],
+    ["や", "ゆ", "よ"],
+    ["ら", "り", "る", "れ", "ろ"],
+    ["わ"],
+];
+
+const VOICED = {
+    か: "が",
+    き: "ぎ",
+    く: "ぐ",
+    け: "げ",
+    こ: "ご",
+    さ: "ざ",
+    し: "じ",
+    す: "ず",
+    せ: "ぜ",
+    そ: "ぞ",
+    た: "だ",
+    ち: "ぢ",
+    つ: "づ",
+    て: "で",
+    と: "ど",
+    は: "ば",
+    ひ: "び",
+    ふ: "ぶ",
+    へ: "べ",
+    ほ: "ぼ",
+};
+const SEMI = { は: "ぱ", ひ: "ぴ", ふ: "ぷ", へ: "ぺ", ほ: "ぽ" };
+const hiraToKata = (h) => String.fromCharCode(h.charCodeAt(0) + 0x60);
+
+const kanaHeads = (h) => {
+    const variants = [h];
+    if (VOICED[h]) variants.push(VOICED[h]);
+    if (SEMI[h]) variants.push(SEMI[h]);
+    return variants.map(hiraToKata);
+};
+
+const wordEls = (kind) => {
+    const list = kind === "noun" ? "nouns" : "verbs";
+    return {
+        fav: document.getElementById(list),
+        index: document.getElementById(`${list}-index`),
+        dict: document.getElementById(`${list}-dict`),
+        favPager: kind === "noun" ? nounsPager : verbsPager,
+        dictPager: kind === "noun" ? nounsDictPager : verbsDictPager,
+        dictView: kind === "noun" ? nounsDictView : verbsDictView,
+    };
+};
+
+const showWordView = (kind, view) => {
+    const el = wordEls(kind);
+    el.fav.style.display = view === "fav" ? "" : "none";
+    el.index.style.display = view === "index" ? "" : "none";
+    el.dict.style.display = view === "dict" ? "" : "none";
+    if (view !== "fav") el.favPager.hideFooter();
+    if (view !== "dict") el.dictPager.hideFooter();
+};
+
+const openKanaDict = async (kind, kana) => {
+    const el = wordEls(kind);
+    const heads = kanaHeads(kana);
+    try {
+        await el.dictPager.load(
+            (p) => getWordsByReading(kind, heads, listLimit(), p),
+            (items) => el.dictView.render(items, listLimit()),
+        );
+        showWordView(kind, "dict");
+        setStatus(`「${kana}」の${kind === "noun" ? "名詞" : "動詞"}を表示しました`);
+    } catch (err) {
+        reportError(err);
+    }
+};
+
+const buildKanaIndex = (kind) => {
+    const el = wordEls(kind);
+    if (!el.index) return;
+    for (const row of KANA_ROWS) {
+        const rowEl = document.createElement("div");
+        rowEl.className = "kana-row";
+        for (const kana of row) {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "kana-button";
+            btn.textContent = kana;
+            btn.addEventListener("click", () => openKanaDict(kind, kana));
+            rowEl.appendChild(btn);
+        }
+        el.index.appendChild(rowEl);
+    }
+};
+
+const dictWordHandlers = (getKind) => ({
+    onRow: async (view, i) => {
+        const word = view.items[i]?.[0];
+        if (!word) return;
+        const kind = getKind();
+        const saved = view.items[i][1] === "1";
+        try {
+            if (saved) await deleteWord(kind, word);
+            else await saveWord(kind, word);
+            view.setSavedRow(i, !saved);
+            setStatus(`「${word}」を${saved ? "削除" : "保存"}しました`);
+        } catch (err) {
+            reportError(err);
+        }
+    },
+});
+
+const setupTabLongPress = () => {
+    const modes = document.getElementById("modes");
+    if (!modes) return;
+    onLongPress(
+        modes,
+        (btn) => {
+            const kind = btn.dataset.mode === "nouns" ? "noun" : btn.dataset.mode === "verbs" ? "verb" : null;
+            if (!kind) return;
+            setMode(btn.dataset.mode);
+            showWordView(kind, "index");
+            setStatus(`${kind === "noun" ? "名詞" : "動詞"}インデックス`);
+        },
+        { selector: '.mode-button[data-mode="nouns"], .mode-button[data-mode="verbs"]' },
+    );
+};
+
 window.addEventListener("DOMContentLoaded", async () => {
     examplesView = createListView(document.getElementById("examples"), "example", exampleHandlers);
     nounsView = createListView(
@@ -528,15 +696,33 @@ window.addEventListener("DOMContentLoaded", async () => {
     searchWordsView = createListView(
         document.getElementById("search-results-words"),
         "word",
-        wordToggleHandlers(() => lastSearchKind),
+        dictWordHandlers(() => lastSearchKind),
     );
     searchExamplesView = createListView(document.getElementById("search-results-examples"), "example", exampleHandlers);
+    nounsDictView = createListView(
+        document.getElementById("nouns-dict"),
+        "word",
+        dictWordHandlers(() => "noun"),
+    );
+    verbsDictView = createListView(
+        document.getElementById("verbs-dict"),
+        "word",
+        dictWordHandlers(() => "verb"),
+    );
 
+    examplesPager = makePager(document.getElementById("examples"));
     nounsPager = makePager(document.getElementById("nouns"));
     verbsPager = makePager(document.getElementById("verbs"));
     sentencesPager = makePager(document.getElementById("sentences"));
     generatedPager = makePager(document.getElementById("generated"));
     searchPager = makePager(document.getElementById("search-results-examples"));
+    nounsDictPager = makePager(document.getElementById("nouns-dict"));
+    verbsDictPager = makePager(document.getElementById("verbs-dict"));
+
+    buildKanaIndex("noun");
+    buildKanaIndex("verb");
+    showWordView("noun", "fav");
+    showWordView("verb", "fav");
 
     setupModes();
     setupSearch();
@@ -544,6 +730,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     setupWordLongPress("noun");
     setupWordLongPress("verb");
     setupGeneratedLongPress();
+    setupExamplesLongPress();
+    setupTabLongPress();
 
     if (document.fonts?.ready) {
         try {

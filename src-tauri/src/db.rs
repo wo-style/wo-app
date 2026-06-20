@@ -3,7 +3,7 @@ use rusqlite::types::{Value, ValueRef};
 use rusqlite::{params_from_iter, Connection};
 use serde::Serialize;
 
-pub const CURRENT_DB_VERSION: i64 = 10;
+pub const CURRENT_DB_VERSION: i64 = 11;
 pub const DB_FILENAME: &str = "wo.db";
 pub const DB_URL: &str = "https://db.wo.style/wo.db";
 
@@ -129,10 +129,76 @@ pub fn get_sentence_examples(conn: &Connection, limit: i64) -> Result<Vec<Item>>
     query_rows(conn, &sql, params)
 }
 
+pub fn get_examples_with_word(
+    conn: &Connection,
+    kind: &str,
+    word: &str,
+    limit: i64,
+    page: i64,
+) -> Result<Paged> {
+    word_table(kind)?;
+    let sql = if kind == "noun" {
+        "SELECT ne.word, ve.word, \
+                EXISTS(SELECT 1 FROM noun WHERE word = ne.word), \
+                EXISTS(SELECT 1 FROM verb WHERE word = ve.word) \
+         FROM noun_example ne \
+         JOIN sentence_example se ON se.noun_id = ne.id \
+         JOIN verb_example ve ON ve.id = se.verb_id \
+         WHERE ne.word = ? \
+         ORDER BY ve.reading"
+    } else {
+        "SELECT ne.word, ve.word, \
+                EXISTS(SELECT 1 FROM noun WHERE word = ne.word), \
+                EXISTS(SELECT 1 FROM verb WHERE word = ve.word) \
+         FROM verb_example ve \
+         JOIN sentence_example se ON se.verb_id = ve.id \
+         JOIN noun_example ne ON ne.id = se.noun_id \
+         WHERE ve.word = ? \
+         ORDER BY ne.reading"
+    };
+    let (items, has_next) = select_paged(conn, sql, vec![Value::Text(word.to_string())], page, limit)?;
+    Ok(Paged {
+        items,
+        page,
+        has_next,
+    })
+}
+
 pub fn get_word_favorites(conn: &Connection, kind: &str, limit: i64, page: i64) -> Result<Paged> {
     let table = word_table(kind)?;
     let sql = format!("SELECT word FROM {table} ORDER BY ROWID DESC");
     let (items, has_next) = select_paged(conn, &sql, vec![], page, limit)?;
+    Ok(Paged {
+        items,
+        page,
+        has_next,
+    })
+}
+
+pub fn get_words_by_reading(
+    conn: &Connection,
+    kind: &str,
+    heads: Vec<String>,
+    limit: i64,
+    page: i64,
+) -> Result<Paged> {
+    let fav = word_table(kind)?;
+    if heads.is_empty() {
+        return Ok(Paged {
+            items: vec![],
+            page,
+            has_next: false,
+        });
+    }
+    let placeholders = vec!["?"; heads.len()].join(",");
+    let sql = format!(
+        "SELECT word, EXISTS(SELECT 1 FROM {fav} WHERE word = e.word) \
+         FROM {fav}_example e \
+         WHERE substr(e.reading, 1, 1) IN ({placeholders}) \
+         ORDER BY e.reading"
+    );
+    let params: Vec<Value> = heads.into_iter().map(Value::Text).collect();
+    let (items, has_next) = select_paged(conn, &sql, params, page, limit)?;
     Ok(Paged {
         items,
         page,
@@ -213,8 +279,11 @@ pub fn search_words(
     limit: i64,
     page: i64,
 ) -> Result<Paged> {
-    let table = word_table(kind)?;
-    let sql = format!("SELECT word FROM {table} WHERE word LIKE ? ORDER BY ROWID DESC");
+    let fav = word_table(kind)?;
+    let sql = format!(
+        "SELECT word, EXISTS(SELECT 1 FROM {fav} WHERE word = e.word) \
+         FROM {fav}_example e WHERE e.word LIKE ? ORDER BY e.word"
+    );
     let (items, has_next) = select_paged(
         conn,
         &sql,
