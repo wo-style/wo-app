@@ -193,7 +193,7 @@ input[type="text"] {
 }
 
 .word.excluded::after {
-    content: " (-)";
+    content: " [-]";
 }
 
 .kana-index {
