@@ -23,13 +23,13 @@ export const onLongPress = (root, onPress, options = {}) => {
     };
 
     const onPointerDown = (e) => {
+        fired = false;
         if (e.button !== undefined && e.button !== 0) return;
         const el = resolve(e.target);
         if (!el) return;
         pressedEl = el;
         startX = e.clientX;
         startY = e.clientY;
-        fired = false;
         timer = setTimeout(() => {
             timer = null;
             fired = true;
