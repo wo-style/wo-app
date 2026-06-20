@@ -441,6 +441,12 @@ const runSearch = async () => {
     }
 };
 
+// Block the Enter key from submitting (so only the button runs the action),
+// but let it through during IME composition so Japanese conversion still works.
+const blockEnterSubmit = (e) => {
+    if (e.key === "Enter" && !e.isComposing) e.preventDefault();
+};
+
 const setupSearch = () => {
     searchForm = document.getElementById("search-form");
     searchResultsWords = document.getElementById("search-results-words");
@@ -450,6 +456,7 @@ const setupSearch = () => {
         e.preventDefault();
         runSearch();
     });
+    searchForm?.addEventListener("keydown", blockEnterSubmit);
 };
 
 const registerType = () => document.querySelector('input[name="register-type"]:checked')?.value ?? "noun";
@@ -490,10 +497,12 @@ const setupRegister = () => {
     registerNoun = document.getElementById("register-noun");
     registerVerb = document.getElementById("register-verb");
     registerWo = document.getElementById("register-wo");
-    document.getElementById("register-form")?.addEventListener("submit", (e) => {
+    const registerForm = document.getElementById("register-form");
+    registerForm?.addEventListener("submit", (e) => {
         e.preventDefault();
         runRegister();
     });
+    registerForm?.addEventListener("keydown", blockEnterSubmit);
     document.querySelectorAll('input[name="register-type"]').forEach((radio) => {
         radio.addEventListener("change", () => updateRegisterInputs(registerType()));
     });
