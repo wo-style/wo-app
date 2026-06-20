@@ -106,10 +106,12 @@ async fn prepare_database(app: AppHandle, state: State<'_, AppState>) -> CmdResu
         let version = db::user_version(&old)?;
         if version < db::CURRENT_DB_VERSION {
             let backup = db::backup_favorites(&old)?;
+            let deleted = db::backup_deleted_examples(&old)?;
             drop(old);
             download_db(&app, &path).await?;
             let mut fresh = Connection::open(&path)?;
             db::restore_favorites(&mut fresh, &backup)?;
+            db::restore_deleted_examples(&mut fresh, &deleted)?;
             drop(fresh);
         } else {
             drop(old);
@@ -170,6 +172,16 @@ fn delete_word(state: State<AppState>, kind: String, word: String) -> CmdResult<
 }
 
 #[tauri::command]
+fn set_example_deleted(
+    state: State<AppState>,
+    kind: String,
+    word: String,
+    deleted: bool,
+) -> CmdResult<()> {
+    with_conn(&state, |c| db::set_example_deleted(c, &kind, &word, deleted))
+}
+
+#[tauri::command]
 fn get_examples_with_word(
     state: State<AppState>,
     kind: String,
@@ -227,6 +239,7 @@ pub fn run() {
             save_word,
             delete_word,
             get_examples_with_word,
+            set_example_deleted,
             get_words_by_reading,
             generate_random_by_favorites,
             generate_with_word_by_favorites,

@@ -192,6 +192,10 @@ input[type="text"] {
     background: var(--wo-selected);
 }
 
+.word.excluded::after {
+    content: " (-)";
+}
+
 .kana-index {
     flex: 1;
     min-height: 0;

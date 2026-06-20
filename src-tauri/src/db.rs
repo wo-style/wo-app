@@ -1,9 +1,8 @@
-use rand::Rng;
 use rusqlite::types::{Value, ValueRef};
 use rusqlite::{params_from_iter, Connection};
 use serde::Serialize;
 
-pub const CURRENT_DB_VERSION: i64 = 11;
+pub const CURRENT_DB_VERSION: i64 = 12;
 pub const DB_FILENAME: &str = "wo.db";
 pub const DB_URL: &str = "https://db.wo.style/wo.db";
 
@@ -96,26 +95,17 @@ fn word_table(kind: &str) -> Result<&'static str> {
 }
 
 pub fn get_sentence_examples(conn: &Connection, limit: i64) -> Result<Vec<Item>> {
-    let max_id: i64 = conn.query_row("SELECT MAX(id) FROM verb_example", [], |r| r.get(0))?;
-    if max_id <= 0 {
-        return Ok(vec![]);
-    }
-
-    let want = limit.min(max_id) as usize;
-    let mut rng = rand::thread_rng();
-    let mut unique_ids: std::collections::HashSet<i64> = std::collections::HashSet::new();
-    while unique_ids.len() < want {
-        unique_ids.insert(rng.gen_range(1..=max_id));
-    }
-    let random_verb_ids: Vec<i64> = unique_ids.into_iter().collect();
-    let placeholders = vec!["?"; random_verb_ids.len()].join(",");
-
-    let sql = format!(
-        "WITH target_pairs AS (
-            SELECT verb_id, noun_id,
-                   ROW_NUMBER() OVER(PARTITION BY verb_id ORDER BY RANDOM()) as rn
-            FROM sentence_example
-            WHERE verb_id IN ({placeholders})
+    let sql = "
+        WITH picked AS (
+            SELECT id FROM verb_example WHERE is_deleted = 0 ORDER BY RANDOM() LIMIT ?
+        ),
+        target_pairs AS (
+            SELECT se.verb_id, se.noun_id,
+                   ROW_NUMBER() OVER(PARTITION BY se.verb_id ORDER BY RANDOM()) AS rn
+            FROM sentence_example se
+            JOIN picked p ON p.id = se.verb_id
+            JOIN noun_example ne ON ne.id = se.noun_id
+            WHERE ne.is_deleted = 0
         )
         SELECT ne.word, ve.word,
                EXISTS(SELECT 1 FROM noun WHERE word = ne.word),
@@ -123,10 +113,8 @@ pub fn get_sentence_examples(conn: &Connection, limit: i64) -> Result<Vec<Item>>
         FROM target_pairs tp
         JOIN noun_example ne ON tp.noun_id = ne.id
         JOIN verb_example ve ON tp.verb_id = ve.id
-        WHERE tp.rn = 1"
-    );
-    let params: Vec<Value> = random_verb_ids.into_iter().map(Value::Integer).collect();
-    query_rows(conn, &sql, params)
+        WHERE tp.rn = 1";
+    query_rows(conn, sql, vec![Value::Integer(limit)])
 }
 
 pub fn get_examples_with_word(
@@ -144,7 +132,7 @@ pub fn get_examples_with_word(
          FROM noun_example ne \
          JOIN sentence_example se ON se.noun_id = ne.id \
          JOIN verb_example ve ON ve.id = se.verb_id \
-         WHERE ne.word = ? \
+         WHERE ne.word = ? AND ne.is_deleted = 0 AND ve.is_deleted = 0 \
          ORDER BY ve.reading"
     } else {
         "SELECT ne.word, ve.word, \
@@ -153,10 +141,11 @@ pub fn get_examples_with_word(
          FROM verb_example ve \
          JOIN sentence_example se ON se.verb_id = ve.id \
          JOIN noun_example ne ON ne.id = se.noun_id \
-         WHERE ve.word = ? \
+         WHERE ve.word = ? AND ve.is_deleted = 0 AND ne.is_deleted = 0 \
          ORDER BY ne.reading"
     };
-    let (items, has_next) = select_paged(conn, sql, vec![Value::Text(word.to_string())], page, limit)?;
+    let (items, has_next) =
+        select_paged(conn, sql, vec![Value::Text(word.to_string())], page, limit)?;
     Ok(Paged {
         items,
         page,
@@ -192,10 +181,10 @@ pub fn get_words_by_reading(
     }
     let placeholders = vec!["?"; heads.len()].join(",");
     let sql = format!(
-        "SELECT word, EXISTS(SELECT 1 FROM {fav} WHERE word = e.word) \
+        "SELECT word, EXISTS(SELECT 1 FROM {fav} WHERE word = e.word), e.is_deleted \
          FROM {fav}_example e \
          WHERE substr(e.reading, 1, 1) IN ({placeholders}) \
-         ORDER BY e.reading"
+         ORDER BY e.is_deleted, e.reading"
     );
     let params: Vec<Value> = heads.into_iter().map(Value::Text).collect();
     let (items, has_next) = select_paged(conn, &sql, params, page, limit)?;
@@ -223,9 +212,8 @@ pub fn get_sentence_favorites(conn: &Connection, limit: i64, page: i64) -> Resul
 
 pub fn search_sentences(conn: &Connection, word: &str, limit: i64, page: i64) -> Result<Paged> {
     let lim = if limit > 0 { limit } else { 20 };
-    let pg = page;
     let like = format!("%{word}%");
-    let need = (pg + 1) * lim + 1;
+    let need = (page + 1) * lim + 1;
     let fetch = lim + 1;
 
     let sql = "
@@ -239,6 +227,7 @@ pub fn search_sentences(conn: &Connection, word: &str, limit: i64, page: i64) ->
                 JOIN noun_example ne ON se.noun_id = ne.id
                 JOIN verb_example ve ON se.verb_id = ve.id
                 WHERE se.noun_id IN (SELECT id FROM noun_example WHERE word LIKE ?)
+                  AND ne.is_deleted = 0 AND ve.is_deleted = 0
                 ORDER BY se.count DESC, se.noun_id, se.verb_id LIMIT ?
             )
             UNION
@@ -250,6 +239,7 @@ pub fn search_sentences(conn: &Connection, word: &str, limit: i64, page: i64) ->
                 JOIN noun_example ne ON se.noun_id = ne.id
                 JOIN verb_example ve ON se.verb_id = ve.id
                 WHERE se.verb_id IN (SELECT id FROM verb_example WHERE word LIKE ?)
+                  AND ne.is_deleted = 0 AND ve.is_deleted = 0
                 ORDER BY se.count DESC, se.noun_id, se.verb_id LIMIT ?
             )
         )
@@ -261,13 +251,13 @@ pub fn search_sentences(conn: &Connection, word: &str, limit: i64, page: i64) ->
         Value::Text(like),
         Value::Integer(need),
         Value::Integer(fetch),
-        Value::Integer(pg * lim),
+        Value::Integer(page * lim),
     ];
     let rows = query_rows(conn, sql, params)?;
     let (items, has_next) = split_has_next(rows, lim);
     Ok(Paged {
         items,
-        page: pg,
+        page,
         has_next,
     })
 }
@@ -282,7 +272,7 @@ pub fn search_words(
     let fav = word_table(kind)?;
     let sql = format!(
         "SELECT word, EXISTS(SELECT 1 FROM {fav} WHERE word = e.word) \
-         FROM {fav}_example e WHERE e.word LIKE ? ORDER BY e.word"
+         FROM {fav}_example e WHERE e.word LIKE ? AND e.is_deleted = 0 ORDER BY e.word"
     );
     let (items, has_next) = select_paged(
         conn,
@@ -328,6 +318,15 @@ pub fn delete_word(conn: &Connection, kind: &str, word: &str) -> Result<()> {
     conn.execute(
         &format!("DELETE FROM {table} WHERE word = ?"),
         rusqlite::params![word],
+    )?;
+    Ok(())
+}
+
+pub fn set_example_deleted(conn: &Connection, kind: &str, word: &str, deleted: bool) -> Result<()> {
+    let fav = word_table(kind)?;
+    conn.execute(
+        &format!("UPDATE {fav}_example SET is_deleted = ? WHERE word = ?"),
+        rusqlite::params![if deleted { 1 } else { 0 }, word],
     )?;
     Ok(())
 }
@@ -439,6 +438,41 @@ pub fn restore_favorites(conn: &mut Connection, backup: &FavoritesBackup) -> Res
         let mut stmt = tx.prepare("INSERT OR IGNORE INTO sentence (noun, verb) VALUES (?, ?)")?;
         for (n, v) in &backup.sentences {
             stmt.execute([n, v])?;
+        }
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+pub struct DeletedExamples {
+    pub nouns: Vec<String>,
+    pub verbs: Vec<String>,
+}
+
+pub fn backup_deleted_examples(conn: &Connection) -> Result<DeletedExamples> {
+    let nouns = query_rows(conn, "SELECT word FROM noun_example WHERE is_deleted = 1", vec![])
+        .unwrap_or_default()
+        .into_iter()
+        .map(|r| r[0].clone())
+        .collect();
+    let verbs = query_rows(conn, "SELECT word FROM verb_example WHERE is_deleted = 1", vec![])
+        .unwrap_or_default()
+        .into_iter()
+        .map(|r| r[0].clone())
+        .collect();
+    Ok(DeletedExamples { nouns, verbs })
+}
+
+pub fn restore_deleted_examples(conn: &mut Connection, deleted: &DeletedExamples) -> Result<()> {
+    let tx = conn.transaction()?;
+    {
+        let mut stmt = tx.prepare("UPDATE noun_example SET is_deleted = 1 WHERE word = ?")?;
+        for w in &deleted.nouns {
+            stmt.execute([w])?;
+        }
+        let mut stmt = tx.prepare("UPDATE verb_example SET is_deleted = 1 WHERE word = ?")?;
+        for w in &deleted.verbs {
+            stmt.execute([w])?;
         }
     }
     tx.commit()?;

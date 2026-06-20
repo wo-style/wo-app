@@ -12,6 +12,7 @@ import {
     searchSentences,
     getExamplesWithWord,
     getWordsByReading,
+    setExampleDeleted,
     generateRandomByFavorites,
     generateWithWordByFavorites,
 } from "./db.js";
@@ -126,6 +127,7 @@ const createListView = (ul, shape, handlers) => {
                 li._text.textContent = row[0];
                 li.dataset.word = row[0];
                 li._text.classList.toggle("saved", row[1] === "1");
+                li._text.classList.toggle("excluded", row[2] === "1");
             }
             li.classList.remove("deleted");
             li.style.display = "";
@@ -672,6 +674,27 @@ const dictWordHandlers = (getKind) => ({
     },
 });
 
+const setupDictLongPress = (kind) => {
+    const ul = document.getElementById(kind === "noun" ? "nouns-dict" : "verbs-dict");
+    if (!ul) return;
+    onLongPress(
+        ul,
+        async (li) => {
+            const word = li.dataset.word;
+            if (!word || !li._text) return;
+            const excluded = li._text.classList.contains("excluded");
+            try {
+                await setExampleDeleted(kind, word, !excluded);
+                li._text.classList.toggle("excluded", !excluded);
+                setStatus(`「${word}」を辞書から${excluded ? "復活" : "除外"}しました`);
+            } catch (err) {
+                reportError(err);
+            }
+        },
+        { selector: ".word-item" },
+    );
+};
+
 const setupTabLongPress = () => {
     const modes = document.getElementById("modes");
     if (!modes) return;
@@ -740,6 +763,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     setupWordLongPress("verb");
     setupGeneratedLongPress();
     setupExamplesLongPress();
+    setupDictLongPress("noun");
+    setupDictLongPress("verb");
     setupTabLongPress();
 
     if (document.fonts?.ready) {
